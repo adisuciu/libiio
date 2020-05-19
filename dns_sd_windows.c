@@ -18,46 +18,6 @@
 #endif
 
 
-static mdns_string_t
-ipv6_address_to_string(char* buffer, size_t capacity, const struct sockaddr_in6* addr,
-	size_t addrlen) {
-	char host[NI_MAXHOST] = { 0 };
-	char service[NI_MAXSERV] = { 0 };
-	int ret = getnameinfo((const struct sockaddr*)addr, addrlen, host, NI_MAXHOST, service,
-		NI_MAXSERV, NI_NUMERICSERV | NI_NUMERICHOST);
-	int len = 0;
-	if (ret == 0) {
-		if (addr->sin6_port != 0)
-			len = snprintf(buffer, capacity, "[%s]:%s", host, service);
-		else
-			len = snprintf(buffer, capacity, "%s", host);
-	}
-	if (len >= (int)capacity)
-		len = (int)capacity - 1;
-	mdns_string_t str = { buffer, len };
-	return str;
-}
-
-static mdns_string_t
-ipv4_address_to_string(char* buffer, size_t capacity, const struct sockaddr_in* addr,
-	size_t addrlen) {
-	char host[NI_MAXHOST] = { 0 };
-	char service[NI_MAXSERV] = { 0 };
-	int ret = getnameinfo((const struct sockaddr*)addr, addrlen, host, NI_MAXHOST, service,
-		NI_MAXSERV, NI_NUMERICSERV | NI_NUMERICHOST);
-	int len = 0;
-	if (ret == 0) {
-		if (addr->sin_port != 0)
-			len = snprintf(buffer, capacity, "%s:%s", host, service);
-		else
-			len = snprintf(buffer, capacity, "%s", host);
-	}
-	if (len >= (int)capacity)
-		len = (int)capacity - 1;
-	mdns_string_t str = { buffer, len };
-	return str;
-}
-
 static int new_discovery_data(struct dns_sd_discovery_data** data)
 {
 	struct dns_sd_discovery_data* d;
@@ -84,7 +44,7 @@ open_client_sockets(int* sockets, int max_sockets) {
 
 #ifdef _WIN32
 	IP_ADAPTER_ADDRESSES* adapter_address = 0;
-	unsigned int address_size = 8000;
+	ULONG address_size = 8000;
 	unsigned int ret;
 	unsigned int num_retries = 4;
 	do {
@@ -122,17 +82,9 @@ open_client_sockets(int* sockets, int max_sockets) {
 					(saddr->sin_addr.S_un.S_un_b.s_b2 != 0) ||
 					(saddr->sin_addr.S_un.S_un_b.s_b3 != 0) ||
 					(saddr->sin_addr.S_un.S_un_b.s_b4 != 1)) {
-					/*if (first_ipv4) {
-						service_address_ipv4 = saddr->sin_addr.S_un.S_addr;
-						first_ipv4 = 0;
-					}*/
 					if (num_sockets < max_sockets) {
 						int sock = mdns_socket_open_ipv4(saddr);
 						if (sock >= 0) {
-							char buffer[128];
-							mdns_string_t addr = ipv4_address_to_string(
-								buffer, sizeof(buffer), saddr, sizeof(struct sockaddr_in));
-							IIO_DEBUG("Local IPv4 address: %.*s\n", MDNS_STRING_FORMAT(addr));
 							sockets[num_sockets++] = sock;
 						}
 					}
@@ -147,17 +99,9 @@ open_client_sockets(int* sockets, int max_sockets) {
 				if ((unicast->DadState == NldsPreferred) &&
 					memcmp(saddr->sin6_addr.s6_addr, localhost, 16) &&
 					memcmp(saddr->sin6_addr.s6_addr, localhost_mapped, 16)) {
-					/*if (first_ipv6) {
-						memcpy(service_address_ipv6, &saddr->sin6_addr, 16);
-						first_ipv6 = 0;
-					}*/
 					if (num_sockets < max_sockets) {
 						int sock = mdns_socket_open_ipv6(saddr);
 						if (sock >= 0) {
-							char buffer[128];
-							mdns_string_t addr = ipv6_address_to_string(
-								buffer, sizeof(buffer), saddr, sizeof(struct sockaddr_in6));
-							printf("Local IPv6 address: %.*s\n", MDNS_STRING_FORMAT(addr));
 							sockets[num_sockets++] = sock;
 						}
 					}
@@ -204,7 +148,7 @@ query_callback(int sock, const struct sockaddr* from, size_t addrlen,
 	if (rtype != MDNS_RECORDTYPE_SRV)
 		goto quit;
 
-	getnameinfo((const struct sockaddr*)from, addrlen,
+	getnameinfo((const struct sockaddr*)from, (socklen_t)addrlen,
 		addrbuffer, NI_MAXHOST, servicebuffer, NI_MAXSERV,
 		NI_NUMERICSERV | NI_NUMERICHOST);
 
@@ -254,7 +198,6 @@ int dnssd_find_hosts(struct dns_sd_discovery_data** ddata)
 		hostname = hostname_buffer;
 #endif
 
-	int ret = 0;
 	struct dns_sd_discovery_data* d;
 
 	IIO_DEBUG("DNS SD: Start service discovery.\n");
@@ -267,11 +210,9 @@ int dnssd_find_hosts(struct dns_sd_discovery_data** ddata)
 	size_t capacity = 2048;
 	void* buffer = malloc(capacity);
 	const char service[] = "_iio._tcp.local.";
-	size_t records;
 
 	IIO_DEBUG("Sending DNS-SD discovery\n");
 
-	int port = 5353;
 	int sockets[32];
 	int transaction_id[32];
 	int num_sockets = open_client_sockets(sockets, sizeof(sockets) / sizeof(sockets[0]));
@@ -308,7 +249,6 @@ int dnssd_find_hosts(struct dns_sd_discovery_data** ddata)
 		Sleep(100);
 	}
 
-quit:
 	free(buffer);
 	for (int isock = 0; isock < num_sockets; ++isock)
 		mdns_socket_close(sockets[isock]);

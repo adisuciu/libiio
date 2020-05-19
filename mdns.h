@@ -470,7 +470,9 @@ extern "C" {
 		size_t cur = *offset;
 		size_t end = MDNS_INVALID_POS;
 		mdns_string_pair_t substr;
-		mdns_string_t result = { str, 0 };
+		mdns_string_t result;
+		result.str = str;
+		result.length = 0;
 		char* dst = str;
 		size_t remain = capacity;
 		do {
@@ -957,9 +959,9 @@ extern "C" {
 		if (capacity < (sizeof(struct mdns_header_t) + 32 + service_length + hostname_length))
 			return -1;
 
-		int use_ipv4 = (ipv4 != 0);
-		int use_ipv6 = (ipv6 != 0);
-		int use_txt = (txt && txt_length && (txt_length <= 255));
+		u_short use_ipv4 = (ipv4 != 0);
+		u_short use_ipv6 = (ipv6 != 0);
+		u_short use_txt = (txt && txt_length && (txt_length <= 255));
 
 		// Basic answer structure
 		struct mdns_header_t* header = (struct mdns_header_t*)buffer;
