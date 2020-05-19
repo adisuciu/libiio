@@ -102,7 +102,7 @@ open_client_sockets(int* sockets, int max_sockets) {
 
 	if (!adapter_address || (ret != NO_ERROR)) {
 		free(adapter_address);
-		ERROR("Failed to get network adapter addresses\n");
+		IIO_ERROR("Failed to get network adapter addresses\n");
 		return num_sockets;
 	}
 
@@ -132,7 +132,7 @@ open_client_sockets(int* sockets, int max_sockets) {
 							char buffer[128];
 							mdns_string_t addr = ipv4_address_to_string(
 								buffer, sizeof(buffer), saddr, sizeof(struct sockaddr_in));
-							DEBUG("Local IPv4 address: %.*s\n", MDNS_STRING_FORMAT(addr));
+							IIO_DEBUG("Local IPv4 address: %.*s\n", MDNS_STRING_FORMAT(addr));
 							sockets[num_sockets++] = sock;
 						}
 					}
@@ -197,7 +197,7 @@ query_callback(int sock, const struct sockaddr* from, size_t addrlen,
 
 	struct dns_sd_discovery_data* dd = (struct dns_sd_discovery_data*)user_data;
 	if (dd == NULL) {
-		ERROR("DNS SD: Missing info structure. Stop browsing.\n");
+		IIO_ERROR("DNS SD: Missing info structure. Stop browsing.\n");
 		goto quit;
 	}
 
@@ -210,7 +210,7 @@ query_callback(int sock, const struct sockaddr* from, size_t addrlen,
 
 	mdns_record_srv_t srv = mdns_record_parse_srv(data, size, offset, length,
 		namebuffer, sizeof(namebuffer));
-	DEBUG("%s : SRV %.*s priority %d weight %d port %d\n",
+	IIO_DEBUG("%s : SRV %.*s priority %d weight %d port %d\n",
 		addrbuffer,
 		MDNS_STRING_FORMAT(srv.name), srv.priority, srv.weight, srv.port);
 
@@ -227,10 +227,10 @@ query_callback(int sock, const struct sockaddr* from, size_t addrlen,
 	strcpy(dd->addr_str, addrbuffer);
 	dd->port = srv.port;
 
-	DEBUG("DNS SD: added %s (%s:%d)\n", dd->hostname, dd->addr_str, dd->port);
+	IIO_DEBUG("DNS SD: added %s (%s:%d)\n", dd->hostname, dd->addr_str, dd->port);
 	// A list entry was filled, prepare new item on the list.
 	if (new_discovery_data(&dd->next)) {
-		ERROR("DNS SD mDNS Resolver : memory failure\n");
+		IIO_ERROR("DNS SD mDNS Resolver : memory failure\n");
 	}
 
 quit:
@@ -257,7 +257,7 @@ int dnssd_find_hosts(struct dns_sd_discovery_data** ddata)
 	int ret = 0;
 	struct dns_sd_discovery_data* d;
 
-	DEBUG("DNS SD: Start service discovery.\n");
+	IIO_DEBUG("DNS SD: Start service discovery.\n");
 
 	if (new_discovery_data(&d) < 0) {
 		return -ENOMEM;
@@ -269,30 +269,30 @@ int dnssd_find_hosts(struct dns_sd_discovery_data** ddata)
 	const char service[] = "_iio._tcp.local.";
 	size_t records;
 
-	DEBUG("Sending DNS-SD discovery\n");
+	IIO_DEBUG("Sending DNS-SD discovery\n");
 
 	int port = 5353;
 	int sockets[32];
 	int transaction_id[32];
 	int num_sockets = open_client_sockets(sockets, sizeof(sockets) / sizeof(sockets[0]));
 	if (num_sockets <= 0) {
-		ERROR("Failed to open any client sockets\n");
+		IIO_ERROR("Failed to open any client sockets\n");
 		return -1;
 	}
-	DEBUG("Opened %d socket%s for mDNS query\n", num_sockets, num_sockets ? "s" : "");
+	IIO_DEBUG("Opened %d socket%s for mDNS query\n", num_sockets, num_sockets ? "s" : "");
 
-	DEBUG("Sending mDNS query: %s\n", service);
+	IIO_DEBUG("Sending mDNS query: %s\n", service);
 	for (int isock = 0; isock < num_sockets; ++isock) {
 		transaction_id[isock] = mdns_query_send(sockets[isock], MDNS_RECORDTYPE_PTR, service, strlen(service), buffer,
 			capacity);
 		if (transaction_id[isock] <= 0)
-			ERROR("Failed to send mDNS query: %s\n", strerror(errno));
+			IIO_ERROR("Failed to send mDNS query: %s\n", strerror(errno));
 	}
 
 	// This is a simple implementation that loops for 10 seconds or as long as we get replies
 	// A real world implementation would probably use select, poll or similar syscall to wait
 	// until data is available on a socket and then read it
-	DEBUG("Reading mDNS query replies\n");
+	IIO_DEBUG("Reading mDNS query replies\n");
 	for (int i = 0; i < 10; ++i) {
 		size_t records;
 		do {
@@ -312,7 +312,7 @@ quit:
 	free(buffer);
 	for (int isock = 0; isock < num_sockets; ++isock)
 		mdns_socket_close(sockets[isock]);
-	DEBUG("Closed socket%s\n", num_sockets ? "s" : "");
+	IIO_DEBUG("Closed socket%s\n", num_sockets ? "s" : "");
 
 #ifdef _WIN32
 	WSACleanup();
