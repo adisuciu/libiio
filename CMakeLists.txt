@@ -261,7 +261,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 if(WITH_NETWORK_BACKEND)
 	message(STATUS "Building with Network back end support")
 	if (WIN32)
-		list(APPEND LIBS_TO_LINK wsock32 ws2_32)
+		list(APPEND LIBS_TO_LINK wsock32 iphlpapi ws2_32)
 	endif()
 
 	if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
